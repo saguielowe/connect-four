@@ -1,0 +1,28 @@
+# Python 缓存文件
+__pycache__/
+ui/
+userdata/
+*.py[cod]
+
+# VS Code 配置
+.vscode/
+
+# 操作系统垃圾
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+
+# 环境文件
+.env
+*.env
+
+# 项目输出
+build/
+dist/
+
+# Jupyter notebook checkpoint
+.ipynb_checkpoints/
+
+*.jpg

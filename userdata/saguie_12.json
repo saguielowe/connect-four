@@ -1,0 +1,13 @@
+{
+    "player1": "saguie",
+    "player2": "monk",
+    "timestamp": "2025-05-04 22:35:47",
+    "first_player": "saguie",
+    "moves": [
+        [
+            5,
+            3
+        ]
+    ],
+    "result": 2
+}
