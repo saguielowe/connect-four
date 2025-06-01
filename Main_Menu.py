@@ -67,7 +67,12 @@ class ListenerThread(threading.Thread):
 class Server: # 服务器端，监听一个窗口，一旦有别人连接则报告
     def __init__(self, host='0.0.0.0', port=12345, on_receive=None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.bind((host, port))
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # 没这句就报错
+        try:
+            self.sock.bind((host, port))
+        except Exception as e:
+            QMessageBox.critical(None, "连接失败", f"发生错误：{e}")
+            return
         self.on_receive = on_receive
         self.sock.listen(1) # 一次只允许一个客户端等待
         print(f"[Server] Listening on {host}:{port}")
@@ -98,9 +103,11 @@ class Client: # 客户端，负责输入要联机的地址，主动发起连接
             print(f"[Client] Connected to {host}:{port}")
         except socket.timeout:
             print("[Client] Connection timed out.")
+            QMessageBox.critical(None, "连接失败", "连接超时！请重试！")
             return
         except Exception as e:
             print(f"[Client] Failed to connect: {e}")
+            QMessageBox.critical(None, "连接失败", f"发生错误：{e}")
             return
         self.send({"type": "hello", "username": username, "xp": xp})
         self.listener = ListenerThread(self.sock, on_receive)
@@ -197,6 +204,7 @@ class MainMenuWindow(QMainWindow):
     client_ready = pyqtSignal()
     host_ready = pyqtSignal(int)
     peace_required = pyqtSignal(dict)
+    result_received = pyqtSignal(dict)
     def __init__(self, username):
         super().__init__()
         self.init_menu_bar()
@@ -438,11 +446,11 @@ class MainMenuWindow(QMainWindow):
         elif self.radio_online.isChecked():
             self.player1 = self.username
             result = ask_connection_mode() #分配主副机
-            self.id = result[0]
-            if result is None:
+            if result == None:
                 return
-            elif result[0] == "host":
-                self.net = Server(host=result[1], port=result[2], on_receive=self.handle_message)
+            self.id = result[0]
+            if result[0] == "host":
+                self.net = Server(host="127.0.0.1", port=result[2], on_receive=self.handle_message)
                 print(f"我是主机，监听 {result[1]}:{result[2]}")
             elif result[0] == "client":
                 self.net = Client(self.username, self.xp, host=result[1], port=result[2], on_receive=self.handle_message)
@@ -474,6 +482,8 @@ class MainMenuWindow(QMainWindow):
             self.move_received.emit(data["move"])
         if data["type"] == "peace": #求和时，求和方发送peace+ask信息，被求和方回答peace+yes/no信息
             self.peace_required.emit(data)
+        if data["type"] == "result":
+            self.result_received.emit(data)
 
     def choose_first_player(self):
         dialog = FirstMoveDialog(self.player1, self.player2)
@@ -482,6 +492,8 @@ class MainMenuWindow(QMainWindow):
             self.net.send({"type": "ready", "first_player": 3 - first_player}) #主机收到客户端ready消息分配先手
             self.game_window = GameWindow(self, 3, first_player)
             self.move_received.connect(self.game_window.on_remote_move)
+            self.peace_required.connect(self.game_window.on_peace_request)
+            self.result_received.connect(self.game_window.on_opp_result)
             self.game_window.show()
             self.hide()
     
@@ -502,28 +514,56 @@ def get_local_ip():
     finally:
         s.close()
 
-
 def ask_connection_mode():
     # 主机 or 客户端
-    mode, ok = QInputDialog.getItem(None, "联机模式选择", "请选择模式：", ["作为主机", "作为客户端"], 0, False)
+    dialog = QInputDialog()
+    dialog.setWindowTitle("联机模式选择")
+    dialog.setLabelText("请选择模式：")
+    dialog.setComboBoxItems(["作为主机", "作为客户端"])
+    dialog.setStyleSheet("QLabel { font-size: 32px; } QComboBox { font-size: 24px; }")
+    ok = dialog.exec_()
     if not ok:
         return None
+    mode = dialog.textValue()
 
     if mode == "作为主机":
         # 获取本机IP用于展示
         ip = get_local_ip()
-        port, ok = QInputDialog.getInt(None, "输入端口", f"你的IP地址是 {ip}\n请输入监听的端口号：", value=12345)
+        port_dialog = QInputDialog()
+        port_dialog.setWindowTitle("输入端口")
+        port_dialog.setLabelText(f"你的IP地址是 {ip}\n请输入监听的端口号：")
+        port_dialog.setInputMode(QInputDialog.IntInput)
+        port_dialog.setIntRange(1024, 65535)
+        port_dialog.setIntValue(12345)
+        port_dialog.setStyleSheet("QLabel { font-size: 32px; } QSpinBox { font-size: 24px; }")
+        ok = port_dialog.exec_()
         if not ok:
             return None
+        port = port_dialog.intValue()
         return ("host", ip, port)
 
     else:
         # 作为客户端，手动输入对方IP和端口
-        ip, ok = QInputDialog.getText(None, "输入主机IP", "请输入主机的IP地址：")
+        ip_dialog = QInputDialog()
+        ip_dialog.setWindowTitle("输入主机IP")
+        ip_dialog.setLabelText("请输入主机的IP地址：")
+        ip_dialog.setInputMode(QInputDialog.TextInput)
+        ip_dialog.setStyleSheet("QLabel { font-size: 32px; } QLineEdit { font-size: 24px; }")
+        ok = ip_dialog.exec_()
         if not ok:
             return None
-        port, ok = QInputDialog.getInt(None, "输入端口", "请输入主机的端口号：", value=12345)
+        ip = ip_dialog.textValue()
+
+        port_dialog = QInputDialog()
+        port_dialog.setWindowTitle("输入端口")
+        port_dialog.setLabelText("请输入主机的端口号：")
+        port_dialog.setInputMode(QInputDialog.IntInput)
+        port_dialog.setIntRange(1024, 65535)
+        port_dialog.setIntValue(12345)
+        port_dialog.setStyleSheet("QLabel { font-size: 32px; } QSpinBox { font-size: 24px; }")
+        ok = port_dialog.exec_()
         if not ok:
             return None
+        port = port_dialog.intValue()
         return ("client", ip, port)
 

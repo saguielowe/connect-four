@@ -1,10 +1,10 @@
 {
-    "stats": {
-        "games_played": 203,
-        "games_won": 82,
-        "games_lost": 106
-    },
-    "preferences": {
-        "show_winrate": 1
-    }
+  "stats": {
+    "games_played": 204,
+    "games_won": 82,
+    "games_lost": 107
+  },
+  "preferences": {
+    "show_winrate": 1
+  }
 }

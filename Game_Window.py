@@ -400,7 +400,7 @@ class GameWindow(QMainWindow):
         minutes = int(delta_time // 60)
         seconds = int(delta_time % 60)
         self.label_total_time.setText(f"对局时间：{minutes}:{seconds:02d}")
-        if self.mode == 1:
+        if self.mode == 1 or self.mode == 3: #联机对战由于网络等等原因不判超时负
             delta_time = current_time - self.user_initial_time
             minutes = int(delta_time // 60)
             seconds = int(delta_time % 60)
@@ -410,6 +410,7 @@ class GameWindow(QMainWindow):
             minutes = int(delta_time // 60)
             if minutes >= 1:
                 self.update_timer.stop()
+                QMessageBox.information(self, "游戏结束", "您已超时！")
                 self.end_game(None, 2 - (len(self.move_sequence) + self.turn) % 2)
             seconds = 60 - int(delta_time % 60)
             self.label_user_time.setText(f"落子倒计时：{minutes}:{seconds:02d}")
@@ -512,6 +513,8 @@ class GameWindow(QMainWindow):
         self.close()
     
     def give_up(self):
+        if self.mode == 3:
+            self.menu_window.net.send({"type": "result", "text": "give_up"})
         self.end_game(None, 2) #相当于对手赢了
         
     def peace(self): # pvp时求和，pve时悔棋
@@ -520,7 +523,7 @@ class GameWindow(QMainWindow):
         elif self.mode == 3:
             self.menu_window.net.send({"type": "peace", "text": "ask"})
             QMessageBox.information(self, "提示", "求和请求已发送，等待对方同意……")
-            self.click_allowed = False
+            self.click_allowed = False #发送求和请求时对方会被对话框阻塞无法落子，此时求和方也不该落子
         else:
             if len(self.move_sequence) < 2:
                 QMessageBox.warning(self, "不能悔棋", "已经到最初了，无法再悔棋。")
@@ -546,9 +549,18 @@ class GameWindow(QMainWindow):
                     self.menu_window.net.send({"type": "peace", "text": "no"})
                     QMessageBox.information(self, "提示", "已拒绝对方求和请求，游戏继续……")
             elif msg["text"] == "yes":
+                QMessageBox.information(self, "提示", "对方同意了你的求和请求，游戏结束！")
                 self.end_game(None, 0)
             elif msg["text"] == "no":
                 QMessageBox.information(self, "提示", "对方拒绝了你的求和请求，游戏继续……")
+                self.click_allowed = True
+    
+    def on_opp_result(self, msg):
+        if self.mode == 3:
+            if msg["text"] == "give_up":
+                QMessageBox.information(self, "提示", "对方认输，游戏结束！")
+                self.end_game(None, 1)
+
 
                 
 
