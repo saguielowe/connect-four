@@ -450,7 +450,7 @@ class MainMenuWindow(QMainWindow):
                 return
             self.id = result[0]
             if result[0] == "host":
-                self.net = Server(host="127.0.0.1", port=result[2], on_receive=self.handle_message)
+                self.net = Server(host=result[1], port=result[2], on_receive=self.handle_message)
                 print(f"我是主机，监听 {result[1]}:{result[2]}")
             elif result[0] == "client":
                 self.net = Client(self.username, self.xp, host=result[1], port=result[2], on_receive=self.handle_message)
